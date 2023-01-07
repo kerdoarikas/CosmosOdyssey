@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cosmos Odyssey</title>
+  <link rel="stylesheet" type="text/css" href="/static/style.css">
+  <!-- Additional styles -->
+  <style>
+    a.viewReservations {
+    display: inline-block;
+    padding: 8px 16px;
+    border: 1px solid #9b59b6;
+    border-radius: 4px;
+    color: white;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+
+    a.viewReservations:hover {
+    background-color: #333;
+    color: #fff;
+    box-shadow: 0 0 5px 2.5px #9b59b6;
+    }
+    .flash-message.success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    border-radius: 5px;
+    padding: 10px;
+    }
+    .flash-message.error {
+    background-color: #f44336;
+    color: white;
+    border-radius: 4px;
+    padding: 15px;
+    font-size: 14px;
+    }
+  </style>
+  <!-- Script to filter search results by company name -->
+  <script>
+      function filterTable() {
+        // get the value of the company-filter input field
+        var companyFilter = document.getElementById('company-filter').value;
+
+        // get all the rows of the table
+        var rows = document.querySelectorAll('table tbody tr');
+
+        // loop through all the rows
+        for (var i = 0; i < rows.length; i++) {
+          // get the company cell of the current row
+          var companyCell = rows[i].querySelector('td:nth-child(3)');
+
+          // if the company cell contains the value of the company-filter input field
+          if (companyCell.textContent.toLowerCase().includes(companyFilter.toLowerCase())) {
+            // show the row
+            rows[i].style.display = '';
+          } else {
+            // hide the row
+            rows[i].style.display = 'none';
+          }
+        }
+      }
+  </script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Script to show only possible destinations based on selected location -->
+  <script>
+function updateToOptions() {
+  // send an AJAX request to the /get_to_options route
+  $.ajax({
+    type: 'POST',
+    url: '/get_to_options',
+    contentType: 'application/json',
+    data: JSON.stringify({ from: $('#from').val() }),
+    success: function(data) {
+      // update the options of the "to" select element with the returned "to" options
+      var toSelect = $('#to');
+      toSelect.empty();
+      for (var i = 0; i < data.to_options.length; i++) {
+        toSelect.append($('<option>', {
+          value: data.to_options[i],
+          text: data.to_options[i]
+        }));
+      }
+    }
+  });
+}
+</script>
+
+
+
+</head>
+<body>
+<!-- Background video for the page -->
+<video src="/static/bgv.mp4" autoplay loop muted playsinline style="width: 100%; height: 100%; object-fit: cover;">
+  <source src="/static/audio.mp3" type="audio/mpeg">
+</video>
+<!-- Flash messages to inform users -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="flash-messages">
+      {% for message in messages %}
+        {% if message[0] == 'success' %}
+          <div class="flash-message success">{{ message[1] }}</div>
+        {% elif message[0] == 'error' %}
+          <div class="flash-message error">{{ message[1] }}</div>
+        {% else %}
+          <div class="flash-message">{{ message[1] }}</div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+  <!-- Search form -->
+  <form action="/search" method="post" class="search-form" onsubmit="return validateForm()">
+    <h1 class="awesome">Cosmos Odyssey</h1>
+    <p>Find the best deals on interplanetary travel in our solar system.</p>
+    <hr>
+    <label for="from">From:</label>
+    <select id="from" name="from" onchange="updateToOptions()">
+    {% for planet in planets %}
+      <option value="{{ planet }}">{{ planet }}</option>
+    {% endfor %}
+    </select>
+    <br>
+    <label for="to">To:</label>
+      <select id="to" name="to">
+
+      </select>
+    <br>
+    <input type="submit" value="Search">
+    <a class="viewReservations" href="{{ url_for('view_reservations') }}">Flight already reserved? Click here!</a>
+  </form>
+
+  <!-- Display validUntil from api for user to know when the current prices are not valid anymore -->
+  {% if valid_until %}
+    <div class="validUntilText">
+      <p>Prices are valid until {{ valid_until }}</p>
+    </div>
+  {% endif %}
+
+  <!-- Table to show providers for selected route and make a reservation -->
+  {% if routes %}
+    <table id="routes-table">
+      <div class="form-group">
+        <label for="company-filter" class="text-secondary">Filter by company:</label>
+        <input type="text" id="company-filter" name="company-filter" class="form-control">
+        <button type="button" class="btn btn-primary" onclick="filterTable()">Filter</button>
+        <label for="sort-by" class="text-secondary">Sort by:</label>
+        <select id="sort-by" name="sort-by" class="form-control">
+          <option value="price-ascending">Price (ascending)</option>
+          <option value="price-descending">Price (descending)</option>
+          <option value="travel-time-ascending">Travel Time (ascending)</option>
+          <option value="travel-time-descending">Travel Time (descending)</option>
+          <option value="flight-start-ascending">Flight Start (ascending)</option>
+          <option value="flight-start-descending">Flight Start (descending)</option>
+        </select>
+      </div>
+      <thead>
+        <tr>
+          <th class="sortable" data-sort-key="from">From</th>
+          <th class="sortable" data-sort-key="to">To</th>
+          <th class="sortable" data-sort-key="company">Company</th>
+          <th class="sortable" data-sort-key="price">Price</th>
+          <th class="sortable" data-sort-key="flight_start">Flight Start</th>
+          <th class="sortable" data-sort-key="flight_end">Flight End</th>
+          <th class="sortable" data-sort-key="travel_time">Travel Time</th>
+          <th class="sortable" data-sort-key="distance">Distance</th>
+          <th></th>  <!-- column for the Reserve button -->
+        </tr>
+      </thead>
+      <tbody>
+        {% for route in routes %}
+          <tr class="{{ route.price }} {{ route.travel_time }} {{ route.distance }}">
+            <td class="from">{{ route.from }}</td>
+            <td class="to">{{ route.to }}</td>
+            <td class="company">{{ route.company }}</td>
+            <td class="price">{{ route.price }}</td>
+            <td class="flight_start">{{ route.flight_start }}</td>
+            <td class="flight_end">{{ route.flight_end }}</td>
+            <td class="travel_time">{{ route.travel_time }}</td>
+            <td class="distance">{{ route.distance }}</td>
+            <td>
+              <!-- Reservation form -->
+              <form action="/reserve" method="post">
+                  <label for="first_name">First Name:</label>
+                  <input type="text" id="first_name" name="first_name">
+                  <br>
+                  <label for="last_name">Last Name:</label>
+                  <input type="text" id="last_name" name="last_name">
+                  <br>
+                  <!-- add hidden input elements for the route_from, route_to, price, and company fields -->
+                  <input type="hidden" id="route_from" name="route_from" value="{{ route.from }}">
+                  <input type="hidden" id="route_to" name="route_to" value="{{ route.to }}">
+                  <input type="hidden" id="price" name="price" value="{{ route.price }}">
+                  <input type="hidden" id="company" name="company" value="{{ route.company }}">
+                  <input type="hidden" id="travel-time" name="travel-time" value="{{ route.travel_time }}">
+                  <input type="hidden" id="distance" name="distance" value="{{ route.distance }}">
+                  <input type="hidden" name="route" value="{{ route.id }}">
+                  <input type="hidden" name="valid_until" value="{{ valid_until }}">
+                  <input type="hidden" name="flight_start" value="{{ route.flight_start }}">
+                  <input type="submit" value="Reserve">
+
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+
+  {% endif %}
+
+<!-- Script to sort table based on price, travel_time or flight_start in accending or decending order -->
+<script>
+// Get the table rows
+var rows = document.querySelectorAll('#routes-table tbody tr');
+
+// Sort the rows based on the price, travel time, or flight start time
+function sortTable(sortKey, order) {
+  // Create an array to store the data for the rows
+  var rowData = [];
+
+  // Loop through the rows and store their data in the array
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var value;
+    var date;
+    if (sortKey === 'flight_start') {
+      // Parse the flight_start string into a Date object
+      var flightStartDate = new Date(row.querySelector('.' + sortKey).textContent);
+      // Get the timestamp in milliseconds
+      value = flightStartDate.getTime();
+    }
+    else if (sortKey === 'travel_time') {
+      // Parse the travel time value into a date object
+      var travelTime = row.querySelector('.' + sortKey).textContent;
+      // Extract the time duration from the travel time string
+      var duration = travelTime.split(' ')[2];
+      // Split the duration into hours, minutes, and seconds
+      var parts = duration.split(':');
+      var days = parseInt(travelTime.split(' ')[0])  // take days into consideration
+      var hours = parseInt(parts[0]);
+      var minutes = parseInt(parts[1]);
+      var seconds = parseInt(parts[2]);
+      // Convert the duration to a number of seconds
+      value = days * 86400 + hours * 3600 + minutes * 60 + seconds;
+    }
+    else {
+      // For other sort keys, use the value as is
+      value = parseFloat(row.querySelector('.' + sortKey).textContent);
+    }
+    rowData.push({ row: row, value: value });
+  }
+
+  // Sort the array
+  if (order === 'ascending') {
+    rowData.sort(function(a, b) {
+      return a.value - b.value;
+    });
+  } else {
+    rowData.sort(function(a, b) {
+      return b.value - a.value;
+    });
+  }
+
+  // Rebuild the table body with the sorted rows
+  var tbody = document.querySelector('#routes-table tbody');
+  tbody.innerHTML = '';
+  rowData.forEach(function(data) {
+    tbody.appendChild(data.row);
+  });
+}
+
+
+// Add an event listener for the sort-by dropdown
+document.querySelector('#sort-by').addEventListener('change', function() {
+  // Get the selected value
+  var sortBy = this.value;
+  var sortKey;
+  var order;
+
+  // Determine the sort key and order based on the selected value
+  if (sortBy === 'price-ascending') {
+    sortKey = 'price';
+    order = 'ascending';
+  } else if (sortBy === 'price-descending') {
+  sortKey = 'price';
+  order = 'descending';
+  } else if (sortBy === 'travel-time-ascending') {
+  sortKey = 'travel_time';
+  order = 'ascending';
+  } else if (sortBy === 'travel-time-descending') {
+  sortKey = 'travel_time';
+  order = 'descending';
+  } else if (sortBy === 'flight-start-ascending') {
+  // Parse the flight start value as a datetime object
+  sortKey = 'flight_start';
+  order = 'ascending';
+  } else if (sortBy === 'flight-start-descending') {
+  sortKey = 'flight_start';
+  order = 'descending';
+  }
+
+  // Call the sortTable function with the appropriate arguments
+  sortTable(sortKey, order);
+  });
+</script>
+<!-- Script to prevent searching for providers without valid selections made -->
+<script>
+  function validateForm() {
+    // get the selected "from" and "to" options
+    var fromOption = document.getElementById('from').value;
+    var toOption = document.getElementById('to').value;
+
+    // check if a "from" option has been selected
+    if (!fromOption) {
+      alert('Please select a valid "from" location');
+      return false;
+    }
+
+    // check if a "to" option has been selected
+    if (!toOption) {
+      alert('Please select a valid "to" location');
+      return false;
+    }
+
+    // if the "from" and "to" options are valid, submit the form
+    return true;
+  }
+</script>
+<!-- Script to update "to" locations based on default "from" selection after page load-->
+<script>
+  $(document).ready(function() {
+  updateToOptions();
+});
+</script>
+
+</body>
+</html>
+
+
